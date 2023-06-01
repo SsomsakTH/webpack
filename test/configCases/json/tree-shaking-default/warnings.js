@@ -1,1 +1,1 @@
-module.exports = [[/Should not import the named export/]];
+module.exports = [[/Can't import the named export/]];

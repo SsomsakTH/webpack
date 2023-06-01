@@ -1,1 +1,1 @@
-import("./shared-module");
+import(/* webpackChunkName: "shared-module" */ "./shared-module");

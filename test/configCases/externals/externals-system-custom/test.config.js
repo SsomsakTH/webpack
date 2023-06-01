@@ -1,7 +1,6 @@
 const System = require("../../../helpers/fakeSystem");
 
 module.exports = {
-	target: "web",
 	beforeExecute: () => {
 		System.init();
 	},

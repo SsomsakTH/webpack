@@ -3,7 +3,7 @@ const baseConfig = {
 	mode: "production",
 	entry: "./index",
 	stats: {
-		modulesSpace: Infinity,
+		maxModules: Infinity,
 		optimizationBailout: true,
 		nestedModules: true,
 		usedExports: true,
@@ -16,14 +16,12 @@ const baseConfig = {
 
 module.exports = [
 	baseConfig,
-	{
-		...baseConfig,
+	Object.assign({}, baseConfig, {
 		output: {
 			filename: "[name].no-side.js"
 		},
-		optimization: {
-			...baseConfig.optimization,
+		optimization: Object.assign({}, baseConfig.optimization, {
 			sideEffects: false
-		}
-	}
+		})
+	})
 ];

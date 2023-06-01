@@ -3,4 +3,5 @@ export { default as b } from "./b";
 export { default as empty } from "./empty";
 export { default as json } from "./json";
 
-throw new Error("Should not be loaded");
+if (process.env.NODE_ENV !== "development")
+	throw new Error("Should not be loaded");

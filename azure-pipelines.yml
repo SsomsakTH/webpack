@@ -1,6 +1,3 @@
-variables:
-  YARN_CACHE_FOLDER: $(Pipeline.Workspace)/.yarn
-
 jobs:
   - job: basic
     pool:
@@ -8,7 +5,7 @@ jobs:
     steps:
       - task: NodeTool@0
         inputs:
-          versionSpec: "^16.0.0"
+          versionSpec: "^10.10.0"
         displayName: "Install Node.js"
       - script: |
           curl -o- -L https://yarnpkg.com/install.sh | bash
@@ -19,11 +16,6 @@ jobs:
           node -v
           yarn -v
         displayName: "Print versions"
-      - task: CacheBeta@1
-        inputs:
-          key: yarn | $(Agent.OS) | yarn.lock
-          path: $(YARN_CACHE_FOLDER)
-        displayName: "Cache Yarn packages"
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
@@ -35,11 +27,9 @@ jobs:
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
           export JEST_JUNIT_OUTPUT_NAME=basic-junit.xml
-          yarn test:basic --ci --reporters=default --reporters=jest-junit
+          yarn test:basic --ci --reporters=jest-junit
           export JEST_JUNIT_OUTPUT_NAME=unit-junit.xml
-          yarn test:unit --ci --reporters=default --reporters=jest-junit
-        env:
-          CI: "true"
+          yarn test:unit --ci --reporters=jest-junit
         displayName: "Run basic tests"
       - task: PublishTestResults@2
         inputs:
@@ -60,7 +50,7 @@ jobs:
     steps:
       - task: NodeTool@0
         inputs:
-          versionSpec: "^16.0.0"
+          versionSpec: "^10.10.0"
         displayName: "Install Node.js"
       - script: |
           curl -o- -L https://yarnpkg.com/install.sh | bash
@@ -71,11 +61,6 @@ jobs:
           node -v
           yarn -v
         displayName: "Print versions"
-      - task: CacheBeta@1
-        inputs:
-          key: yarn | $(Agent.OS) | yarn.lock
-          path: $(YARN_CACHE_FOLDER)
-        displayName: "Cache Yarn packages"
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
@@ -86,9 +71,10 @@ jobs:
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-          yarn lint
-        env:
-          CI: "true"
+          yarn -s run code-lint --format junit > junit.xml
+          yarn jest-lint
+          yarn type-lint
+          yarn special-lint
         displayName: "Run linting"
       - task: PublishTestResults@2
         inputs:
@@ -97,77 +83,6 @@ jobs:
         condition: succeededOrFailed()
         displayName: "Publish lint results"
 
-  - job: Windows
-    dependsOn:
-      - basic
-      - lint
-    pool:
-      vmImage: windows-latest
-    strategy:
-      maxParallel: 6
-      matrix:
-        node-10-a:
-          node_version: ^10.13.0
-          part: a
-        node-10-b:
-          node_version: ^10.13.0
-          part: b
-        node-12-a:
-          node_version: ^12.4.0
-          part: a
-        node-12-b:
-          node_version: ^12.4.0
-          part: b
-        node-16-a:
-          node_version: ^16.0.0
-          part: a
-        node-16-b:
-          node_version: ^16.0.0
-          part: b
-    steps:
-      - task: NodeTool@0
-        inputs:
-          versionSpec: $(node_version)
-        displayName: "Install Node.js $(node_version)"
-      - script: |
-          npm install --global yarn
-        displayName: "Install Yarn"
-      - script: |
-          node -v
-          yarn -v
-        displayName: "Print versions"
-      - task: CacheBeta@1
-        inputs:
-          key: yarn | $(Agent.OS) | yarn.lock
-          path: $(YARN_CACHE_FOLDER)
-        displayName: "Cache Yarn packages"
-      # Install old `jest` version and ignore platform problem for legacy node versions
-      - script: |
-          yarn upgrade jest@^27.5.0 jest-circus@^27.5.0 jest-cli@^27.5.0 jest-diff@^27.5.0 jest-environment-node@^27.5.0 jest-junit@^13.0.0 @types/jest@^27.4.0 pretty-format@^27.0.2 --ignore-engines
-          yarn --frozen-lockfile --ignore-engines
-        displayName: "Install dependencies (old node.js version)"
-        condition: or(eq(variables['node_version'], '^10.13.0'), eq(variables['node_version'], '^12.4.0'))
-      - script: yarn --frozen-lockfile
-        displayName: "Install dependencies"
-        condition: and(not(eq(variables['node_version'], '^10.13.0')), not(eq(variables['node_version'], '^12.4.0')))
-      - script: yarn link --frozen-lockfile || true
-        displayName: "Link webpack"
-        continueOnError: true
-      - script: yarn link webpack --frozen-lockfile
-        displayName: "Link webpack into node_modules"
-      - script: |
-          yarn cover:integration:$(part) --ci --maxWorkers=2 --reporters=default --reporters=jest-junit || yarn cover:integration:$(part) --ci --maxWorkers=2 --reporters=default --reporters=jest-junit -f
-          yarn cover:merge
-        env:
-          CI: "true"
-        displayName: "Run tests with coverage"
-      - task: PublishTestResults@2
-        inputs:
-          testRunTitle: "Windows with Node.js $(node_version)"
-          testResultsFiles: "**/junit.xml"
-        condition: succeededOrFailed()
-        displayName: "Publish test results"
-
   - job: Linux
     dependsOn:
       - basic
@@ -175,26 +90,16 @@ jobs:
     pool:
       vmImage: ubuntu-latest
     strategy:
-      maxParallel: 6
+      maxParallel: 4
       matrix:
-        node-10-a:
-          node_version: ^10.13.0
-          part: a
-        node-10-b:
-          node_version: ^10.13.0
-          part: b
-        node-12-a:
-          node_version: ^12.4.0
-          part: a
-        node-14-a:
-          node_version: ^14.0.0
-          part: a
-        node-16-a:
-          node_version: ^16.0.0
-          part: a
-        node-16-b:
-          node_version: ^16.0.0
-          part: b
+        node-12:
+          node_version: ^12.2.0
+        node-10:
+          node_version: ^10.10.0
+        node-8:
+          node_version: ^8.12.0
+        node-6:
+          node_version: ^6.14.4
     steps:
       - task: NodeTool@0
         inputs:
@@ -209,21 +114,6 @@ jobs:
           node -v
           yarn -v
         displayName: "Print versions"
-      - task: CacheBeta@1
-        inputs:
-          key: yarn | $(Agent.OS) | yarn.lock
-          path: $(YARN_CACHE_FOLDER)
-        displayName: "Cache Yarn packages"
-      # Install old `jest` version and ignore platform problem for legacy node versions
-      - script: |
-          set -e
-          export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-          yarn upgrade jest@^27.5.0 jest-circus@^27.5.0 jest-cli@^27.5.0 jest-diff@^27.5.0 jest-environment-node@^27.5.0 jest-junit@^13.0.0 @types/jest@^27.4.0 pretty-format@^27.0.2 --ignore-engines
-          yarn --frozen-lockfile --ignore-engines
-          yarn link --frozen-lockfile || true
-          yarn link webpack --frozen-lockfile
-        displayName: "Install dependencies (old node.js version)"
-        condition: or(eq(variables['node_version'], '^10.13.0'), eq(variables['node_version'], '^12.4.0'), eq(variables['node_version'], '^14.0.0'))
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
@@ -231,14 +121,10 @@ jobs:
           yarn link --frozen-lockfile || true
           yarn link webpack --frozen-lockfile
         displayName: "Install dependencies"
-        condition: and(not(eq(variables['node_version'], '^10.13.0')), not(eq(variables['node_version'], '^12.4.0')), not(eq(variables['node_version'], '^14.0.0')))
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-          yarn cover:integration:$(part) --ci --maxWorkers=2 --reporters=default --reporters=jest-junit || yarn cover:integration:$(part) --ci --maxWorkers=2 --reporters=default --reporters=jest-junit -f
-          yarn cover:merge
-        env:
-          CI: "true"
+          yarn cover:integration --ci --maxWorkers=2 --reporters=jest-junit
         displayName: "Run tests with coverage"
       - task: PublishTestResults@2
         inputs:
@@ -256,18 +142,14 @@ jobs:
     strategy:
       maxParallel: 4
       matrix:
-        node-12-a:
-          node_version: ^12.4.0
-          part: a
-        node-12-b:
-          node_version: ^12.4.0
-          part: b
-        node-16-a:
-          node_version: ^16.0.0
-          part: a
-        node-16-b:
-          node_version: ^16.0.0
-          part: b
+        node-12:
+          node_version: ^12.2.0
+        node-10:
+          node_version: ^10.10.0
+        node-8:
+          node_version: ^8.12.0
+        node-6:
+          node_version: ^6.14.4
     steps:
       - task: NodeTool@0
         inputs:
@@ -282,20 +164,6 @@ jobs:
           node -v
           yarn -v
         displayName: "Print versions"
-      - task: CacheBeta@1
-        inputs:
-          key: yarn | $(Agent.OS) | yarn.lock
-          path: $(YARN_CACHE_FOLDER)
-        displayName: "Cache Yarn packages"
-      - script: |
-          set -e
-          export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-          yarn upgrade jest@^27.5.0 jest-circus@^27.5.0 jest-cli@^27.5.0 jest-diff@^27.5.0 jest-environment-node@^27.5.0 jest-junit@^13.0.0 @types/jest@^27.4.0 pretty-format@^27.0.2 --ignore-engines
-          yarn --frozen-lockfile --ignore-engines
-          yarn link --frozen-lockfile || true
-          yarn link webpack --frozen-lockfile
-        displayName: "Install dependencies (old node.js version)"
-        condition: or(eq(variables['node_version'], '^10.13.0'), eq(variables['node_version'], '^12.4.0'))
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
@@ -303,18 +171,58 @@ jobs:
           yarn link --frozen-lockfile || true
           yarn link webpack --frozen-lockfile
         displayName: "Install dependencies"
-        condition: and(not(eq(variables['node_version'], '^10.13.0')), not(eq(variables['node_version'], '^12.4.0')))
       - script: |
           set -e
           export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-          yarn cover:integration:$(part) --ci --reporters=default --reporters=jest-junit || yarn cover:integration:$(part) --ci --reporters=default --reporters=jest-junit -f
-          yarn cover:merge
-        env:
-          CI: "true"
+          yarn cover:integration --ci --reporters=jest-junit
         displayName: "Run tests with coverage"
       - task: PublishTestResults@2
         inputs:
           testRunTitle: "macOS with Node.js $(node_version)"
+          testResultsFiles: "**/junit.xml"
+        condition: succeededOrFailed()
+        displayName: "Publish test results"
+
+  - job: Windows
+    dependsOn:
+      - basic
+      - lint
+    pool:
+      vmImage: windows-latest
+    strategy:
+      maxParallel: 4
+      matrix:
+        node-12:
+          node_version: ^12.2.0
+        node-10:
+          node_version: ^10.10.0
+        node-8:
+          node_version: ^8.12.0
+        node-6:
+          node_version: ^6.14.4
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: $(node_version)
+        displayName: "Install Node.js $(node_version)"
+      - script: |
+          npm install --global yarn
+        displayName: "Install Yarn"
+      - script: |
+          node -v
+          yarn -v
+        displayName: "Print versions"
+      - script: |
+          yarn --frozen-lockfile
+          yarn link --frozen-lockfile || true
+          yarn link webpack --frozen-lockfile
+        displayName: "Install dependencies"
+      - script: |
+          yarn cover:integration --ci --maxWorkers=2 --reporters=jest-junit
+        displayName: "Run tests with coverage"
+      - task: PublishTestResults@2
+        inputs:
+          testRunTitle: "Windows with Node.js $(node_version)"
           testResultsFiles: "**/junit.xml"
         condition: succeededOrFailed()
         displayName: "Publish test results"

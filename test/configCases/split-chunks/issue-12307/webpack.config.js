@@ -18,10 +18,8 @@ module.exports = {
 				test: {
 					test: /shared/,
 					minChunks: 1,
-					usedExports: false,
 					chunks: "initial",
-					minSize: 100,
-					minRemainingSize: 0
+					minSize: 100
 				}
 			}
 		}

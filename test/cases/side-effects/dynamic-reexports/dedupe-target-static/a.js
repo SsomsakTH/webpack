@@ -1,2 +1,3 @@
 export * from "./module";
-export const valueUsed = __webpack_exports_info__.value.used;
+if (process.env.NODE_ENV !== "development")
+	throw new Error("Should not be loaded");
